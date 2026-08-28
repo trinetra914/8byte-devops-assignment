@@ -15,17 +15,18 @@
       "Resource": "*"
     },
     {
-      "Sid": "SSMDeployment",
-      "Effect": "Allow",
-      "Action": [
-        "ssm:SendCommand",
-        "ssm:GetCommandInvocation"
-      ],
-      "Resource": [
-        "arn:aws:ec2:ap-south-1:777040315554:instance/i-054dae028a48968be",
-        "arn:aws:ssm:ap-south-1::document/AWS-RunShellScript"
-      ]
-    },
+  "Sid": "SSMDeployment",
+  "Effect": "Allow",
+  "Action": [
+    "ssm:SendCommand",
+    "ssm:GetCommandInvocation"
+  ],
+  "Resource": [
+    "arn:aws:ec2:ap-south-1:777040315554:instance/i-054dae028a48968be",
+    "arn:aws:ssm:ap-south-1::document/AWS-RunShellScript",
+    "arn:aws:ssm:ap-south-1:777040315554:*"
+  ]
+},
     {
       "Sid": "EC2Describe",
       "Effect": "Allow",
