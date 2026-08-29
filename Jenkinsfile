@@ -18,5 +18,11 @@ pipeline {
             }
         }
 
+        stage('AWS Check') {
+            steps {
+                bat 'aws --version'
+                bat 'aws sts get-caller-identity'
+            }
+        }
     }
 }
