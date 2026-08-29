@@ -20,8 +20,15 @@ pipeline {
 
         stage('AWS Check') {
             steps {
-                bat 'aws --version'
-                bat 'aws sts get-caller-identity'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    bat 'aws sts get-caller-identity'
+                }
             }
         }
     }
