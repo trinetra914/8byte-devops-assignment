@@ -9,3 +9,7 @@ __pycache__/
 *.pyc
 .venv/
 .vscode/
+cloudwatch-agent.json
+cw-config-request.json
+ssm-request.json
+test-request.json
