@@ -11,10 +11,12 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Check') {
             steps {
-                bat '"C:\\Users\\trine\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t 8byte-devops-app:latest .'
+                bat '"C:\\Users\\trine\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" --version'
+                bat '"C:\\Users\\trine\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" info'
             }
         }
+
     }
 }
