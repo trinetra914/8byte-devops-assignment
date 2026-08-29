@@ -6,27 +6,49 @@ pipeline {
         DOCKER = 'C:\\Users\\trine\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
 
         AWS_REGION = 'ap-south-1'
-        AWS_ACCOUNT_ID = '777040315554'
-        ECR_REPOSITORY = '8byte-devops-app'
+        ECR_REPO = '777040315554.dkr.ecr.ap-south-1.amazonaws.com/8byte-devops-app'
         IMAGE_TAG = '1.0'
-        ECR_REGISTRY = '777040315554.dkr.ecr.ap-south-1.amazonaws.com'
-        ECR_IMAGE = '777040315554.dkr.ecr.ap-south-1.amazonaws.com/8byte-devops-app:1.0'
+
+        AWS_CREDENTIALS = 'aws-credentials'
     }
 
     stages {
 
         stage('Test') {
             steps {
-                bat '"%PYTHON%" -m pip install -r app\\requirements.txt'
-                bat '"%PYTHON%" -m pip install pytest'
-                bat '"%PYTHON%" -m pytest tests'
+                echo 'Installing application dependencies...'
+
+                bat "\"%PYTHON%\" -m pip install -r app\\requirements.txt"
+
+                echo 'Installing pytest...'
+
+                bat "\"%PYTHON%\" -m pip install pytest"
+
+                echo 'Running tests...'
+
+                bat "\"%PYTHON%\" -m pytest tests"
             }
         }
 
         stage('Docker Check') {
             steps {
-                bat '"%DOCKER%" --version'
-                bat '"%DOCKER%" info'
+                echo 'Checking Docker...'
+
+                bat "\"%DOCKER%\" --version"
+
+                bat "\"%DOCKER%\" info"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building Docker image...'
+
+                bat "\"%DOCKER%\" build -t %ECR_REPO%:%IMAGE_TAG% ."
+
+                echo 'Docker image built successfully.'
+
+                bat "\"%DOCKER%\" images"
             }
         }
 
@@ -34,16 +56,12 @@ pipeline {
             steps {
                 withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: 'aws-credentials']
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    bat 'aws sts get-caller-identity'
+                    bat "aws sts get-caller-identity"
                 }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                bat '"%DOCKER%" build -t %ECR_REPOSITORY%:%IMAGE_TAG% .'
             }
         }
 
@@ -51,16 +69,17 @@ pipeline {
             steps {
                 withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: 'aws-credentials']
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    bat 'aws ecr get-login-password --region %AWS_REGION% | "%DOCKER%" login --username AWS --password-stdin %ECR_REGISTRY%'
-                }
-            }
-        }
 
-        stage('Tag Docker Image') {
-            steps {
-                bat '"%DOCKER%" tag %ECR_REPOSITORY%:%IMAGE_TAG% %ECR_IMAGE%'
+                    echo 'Logging into Amazon ECR...'
+
+                    bat """
+                        aws ecr get-login-password --region %AWS_REGION% | "%DOCKER%" login --username AWS --password-stdin %ECR_REPO%
+                    """
+                }
             }
         }
 
@@ -68,20 +87,89 @@ pipeline {
             steps {
                 withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: 'aws-credentials']
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    bat '"%DOCKER%" push %ECR_IMAGE%'
+
+                    echo 'Pushing Docker image to ECR...'
+
+                    bat "\"%DOCKER%\" push %ECR_REPO%:%IMAGE_TAG%"
+
+                    echo 'Docker image pushed successfully.'
                 }
             }
         }
 
-        stage('Verify ECR Image') {
+        stage('Terraform Init') {
             steps {
                 withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: 'aws-credentials']
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    bat 'aws ecr describe-images --repository-name %ECR_REPOSITORY% --image-ids imageTag=%IMAGE_TAG% --region %AWS_REGION%'
+
+                    dir('terraform') {
+                        echo 'Initializing Terraform...'
+
+                        bat 'terraform init'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+
+                    dir('terraform') {
+                        echo 'Creating Terraform plan...'
+
+                        bat 'terraform plan'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+
+                    dir('terraform') {
+                        echo 'Applying Terraform infrastructure...'
+
+                        bat 'terraform apply -auto-approve'
+                    }
+                }
+            }
+        }
+
+        stage('Deployment Information') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: "${AWS_CREDENTIALS}",
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+
+                    dir('terraform') {
+
+                        echo 'Getting Terraform outputs...'
+
+                        bat 'terraform output'
+                    }
                 }
             }
         }
@@ -89,18 +177,21 @@ pipeline {
 
     post {
         success {
-            echo '========================================'
-            echo 'PIPELINE SUCCESS'
-            echo 'Docker image pushed to AWS ECR'
-            echo '========================================'
-            echo "ECR Image: ${ECR_IMAGE}"
+            echo '=========================================='
+            echo 'PIPELINE COMPLETED SUCCESSFULLY'
+            echo '=========================================='
+            echo 'Tests passed.'
+            echo 'Docker image built.'
+            echo 'Docker image pushed to ECR.'
+            echo 'Terraform infrastructure deployed.'
+            echo '=========================================='
         }
 
         failure {
-            echo '========================================'
+            echo '=========================================='
             echo 'PIPELINE FAILED'
-            echo 'Check the stage that failed above.'
-            echo '========================================'
+            echo 'Check the stage above for the error.'
+            echo '=========================================='
         }
     }
 }
