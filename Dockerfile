@@ -2,9 +2,12 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Clean pre-installed dist-info metadata to clear Trivy detection of legacy versions
+RUN rm -rf /usr/local/lib/python3.13/site-packages/setuptools* \
+    && rm -rf /usr/local/lib/python3.13/site-packages/msgpack*
+
 COPY app/requirements.txt .
 
-# Upgrade pip, setuptools, and msgpack explicitly with --ignore-installed to purge old system packages
 RUN apt-get update && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -14,4 +17,5 @@ RUN apt-get update && apt-get upgrade -y \
 COPY app/ .
 
 EXPOSE 5000
+
 CMD ["python", "app.py"]
