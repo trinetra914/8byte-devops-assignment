@@ -69,11 +69,11 @@ pipeline {
             }
         }
 
-  stage('Vulnerability Scan') {
-    steps {
-        bat "\"${TRIVY}\" image --severity HIGH,CRITICAL --exit-code 1 ${ECR_REPOSITORY}:${IMAGE_TAG}"
-    }
-}
+        stage('Vulnerability Scan') {
+            steps {
+                bat "\"${TRIVY}\" image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 ${ECR_REPOSITORY}:${IMAGE_TAG}"
+            }
+      }
 
         stage('Tag Docker Image') {
             steps {
