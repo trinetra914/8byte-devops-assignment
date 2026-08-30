@@ -4,12 +4,13 @@ WORKDIR /app
 
 COPY app/requirements.txt .
 
+# Force pip to upgrade setuptools and msgpack to secure versions
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --upgrade msgpack setuptools
+    && pip install --no-cache-dir --upgrade pip setuptools>=78.1.1 msgpack>=1.2.1 \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY app/ .
 
