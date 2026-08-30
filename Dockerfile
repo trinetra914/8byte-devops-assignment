@@ -4,17 +4,14 @@ WORKDIR /app
 
 COPY app/requirements.txt .
 
-# Uninstall default base image packages before clean install
-RUN apt-get update \
-    && apt-get upgrade -y \
+# Upgrade pip, setuptools, and msgpack explicitly with --ignore-installed to purge old system packages
+RUN apt-get update && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && pip uninstall -y msgpack setuptools \
-    && pip install --no-cache-dir --upgrade pip setuptools>=78.1.1 msgpack>=1.2.1 \
-    && pip install --no-cache-dir -r requirements.txt
+    && python -m pip install --no-cache-dir --upgrade --ignore-installed pip "setuptools>=78.1.1" "msgpack>=1.2.1" \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 COPY app/ .
 
 EXPOSE 5000
-
 CMD ["python", "app.py"]
