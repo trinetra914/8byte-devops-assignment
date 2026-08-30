@@ -4,12 +4,13 @@ WORKDIR /app
 
 COPY app/requirements.txt .
 
-# Force reinstallation to break cached vulnerable packages
+# Uninstall default base image packages before clean install
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --upgrade --force-reinstall pip setuptools>=78.1.1 msgpack>=1.2.1 \
+    && pip uninstall -y msgpack setuptools \
+    && pip install --no-cache-dir --upgrade pip setuptools>=78.1.1 msgpack>=1.2.1 \
     && pip install --no-cache-dir -r requirements.txt
 
 COPY app/ .
