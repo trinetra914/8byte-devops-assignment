@@ -4,6 +4,7 @@ pipeline {
     environment {
         PYTHON = 'C:\\Users\\trine\\AppData\\Local\\Programs\\Python\\Python313\\python.exe'
         DOCKER = 'C:\\Users\\trine\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
+        TRIVY = 'C:\\Users\\trine\\AppData\\Local\\Microsoft\\WinGet\\Packages\\AquaSecurity.Trivy_Microsoft.Winget.Source_8wekyb3d8bbwe\\trivy.exe'
 
         AWS_REGION = 'ap-south-1'
         ECR_REGISTRY = '777040315554.dkr.ecr.ap-south-1.amazonaws.com'
@@ -67,6 +68,12 @@ pipeline {
                 """
             }
         }
+
+  stage('Vulnerability Scan') {
+    steps {
+        bat "\"${TRIVY}\" image --severity HIGH,CRITICAL --exit-code 1 ${ECR_REPOSITORY}:${IMAGE_TAG}"
+    }
+}
 
         stage('Tag Docker Image') {
             steps {
