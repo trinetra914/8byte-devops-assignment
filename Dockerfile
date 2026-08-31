@@ -27,8 +27,8 @@ RUN apt-get update && apt-get upgrade -y \
 # Copy only clean, upgraded dependencies from builder stage
 COPY --from=builder /install /usr/local
 
-# Copy application files
-COPY app/ .
+# Copy application package
+COPY app/ /app/app/
 
 # Copy tests for CI/integration testing
 COPY tests/ /app/tests/
@@ -39,4 +39,4 @@ USER appuser
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["python", "app/app.py"]

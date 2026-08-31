@@ -3,7 +3,7 @@ import unittest
 
 import psycopg
 
-from app import app
+from app.app import app
 
 
 class TestDatabaseIntegration(unittest.TestCase):
