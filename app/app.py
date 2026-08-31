@@ -1,10 +1,58 @@
 import os
+import time
 
 import psycopg
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from prometheus_client import Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST
+
 
 app = Flask(__name__)
 
+
+# ----------------------------------------------------------------------
+# Prometheus application metrics
+# ----------------------------------------------------------------------
+
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "endpoint", "http_status"],
+)
+
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "endpoint"],
+)
+
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+
+@app.after_request
+def after_request(response):
+    latency = time.time() - request.start_time
+
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.path,
+        http_status=response.status_code,
+    ).inc()
+
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=request.path,
+    ).observe(latency)
+
+    return response
+
+
+# ----------------------------------------------------------------------
+# Application routes
+# ----------------------------------------------------------------------
 
 @app.route("/")
 def home():
@@ -38,6 +86,17 @@ def db_health():
 
     except Exception:
         return jsonify({"database": "unhealthy"}), 503
+
+
+# ----------------------------------------------------------------------
+# Prometheus metrics endpoint
+# ----------------------------------------------------------------------
+
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {
+        "Content-Type": CONTENT_TYPE_LATEST
+    }
 
 
 if __name__ == "__main__":
