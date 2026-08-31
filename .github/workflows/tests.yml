@@ -12,6 +12,28 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U testuser -d testdb"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: testdb
+      DB_USER: testuser
+      DB_PASSWORD: testpassword
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,6 +48,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r app/requirements.txt
 
-      - name: Run tests
+      - name: Run unit tests
         run: |
-          python -m unittest discover -s tests -v
+          python -m unittest discover -s tests -p "test_app.py" -v
+
+      - name: Run integration tests
+        run: |
+          python -m unittest discover -s tests -p "test_integration.py" -v
+
+      - name: Scan dependencies for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+          exit-code: "1"

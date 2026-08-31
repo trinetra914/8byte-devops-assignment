@@ -30,6 +30,9 @@ COPY --from=builder /install /usr/local
 # Copy application files
 COPY app/ .
 
+# Copy tests for CI/integration testing
+COPY tests/ /app/tests/
+
 # Non-root user for security best practices
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
