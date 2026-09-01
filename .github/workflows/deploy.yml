@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build, Scan and Deploy
 
 on:
   push:
@@ -14,10 +14,18 @@ env:
   ECR_REPOSITORY: 8byte-devops-app
   EC2_INSTANCE_ID: i-054dae028a48968be
   CONTAINER_NAME: 8byte-devops-container
+  ECR_REGISTRY: 777040315554.dkr.ecr.ap-south-1.amazonaws.com
 
 jobs:
-  build-scan-deploy:
+
+  # 1. Build and scan Docker image
+
+  build-and-scan:
+    name: Build and Scan Docker Image
     runs-on: ubuntu-latest
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
 
     steps:
       - name: Checkout code
@@ -34,27 +42,67 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t $ECR_REPOSITORY:${{ github.sha }} .
-          docker tag $ECR_REPOSITORY:${{ github.sha }} \
-            777040315554.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPOSITORY:${{ github.sha }}
+          docker build \
+            -t $ECR_REPOSITORY:${{ github.sha }} \
+            .
+
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.ECR_REPOSITORY }}:${{ github.sha }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Tag Docker image
+        run: |
+          docker tag \
+            $ECR_REPOSITORY:${{ github.sha }} \
+            $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
       - name: Push Docker image to ECR
         run: |
           docker push \
-            777040315554.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPOSITORY:${{ github.sha }}
+            $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
-      - name: Deploy to EC2
+      - name: Save image reference
+        id: image
+        run: |
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+
+  # 2. Deploy to staging
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+
+    environment:
+      name: staging
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy application to staging EC2
+        env:
+          IMAGE: ${{ needs.build-and-scan.outputs.image }}
         run: |
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
-              "aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 777040315554.dkr.ecr.ap-south-1.amazonaws.com",
-              "docker pull 777040315554.dkr.ecr.ap-south-1.amazonaws.com/8byte-devops-app:${{ github.sha }}",
-              "docker stop 8byte-devops-container || true",
-              "docker rm 8byte-devops-container || true",
-              "docker run -d --restart unless-stopped --name 8byte-devops-container -p 5000:5000 777040315554.dkr.ecr.ap-south-1.amazonaws.com/8byte-devops-app:${{ github.sha }}"
-            ]' \
+            --parameters "commands=[
+              \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY\",
+              \"docker pull $IMAGE\",
+              \"docker stop $CONTAINER_NAME || true\",
+              \"docker rm $CONTAINER_NAME || true\",
+              \"docker run -d --restart unless-stopped --name $CONTAINER_NAME -p 5000:5000 $IMAGE\"
+            ]" \
             --query "Command.CommandId" \
             --output text)
 
@@ -67,3 +115,121 @@ jobs:
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID"
+
+      - name: Staging health check
+        run: |
+          echo "Waiting for staging application..."
+          sleep 15
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://13.207.41.61:5000/health")
+
+          echo "Staging health endpoint returned: $STATUS"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Staging health check failed."
+            exit 1
+          fi
+
+          echo "Staging deployment successful."
+
+
+  # 3. Production deployment
+
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+
+    # IMPORTANT:
+    # Configure required reviewers for this environment
+    # in GitHub repository settings.
+    environment:
+      name: production
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy approved image to production
+        env:
+          IMAGE: ${{ needs.build-and-scan.outputs.image }}
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY\",
+              \"docker pull $IMAGE\",
+              \"docker stop $CONTAINER_NAME || true\",
+              \"docker rm $CONTAINER_NAME || true\",
+              \"docker run -d --restart unless-stopped --name $CONTAINER_NAME -p 5000:5000 $IMAGE\"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Production SSM Command ID: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
+
+      - name: Production health check
+        run: |
+          echo "Waiting for production application..."
+          sleep 15
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://13.207.41.61:5000/health")
+
+          echo "Production health endpoint returned: $STATUS"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Production health check failed."
+            exit 1
+          fi
+
+          echo "Production deployment successful."
+
+
+  # 4. Failure notification
+
+  notify-failure:
+    name: Notify on Failure
+    needs:
+      - build-and-scan
+      - deploy-staging
+      - deploy-production
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify deployment failure
+        run: |
+          echo "Deployment pipeline failed."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run: ${{ github.run_number }}"
+          echo "Please check the GitHub Actions logs."
+
+            - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        payload: |
+          {
+            "text": " Deployment pipeline failed!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.run_number }}\nPlease check GitHub Actions logs."
+          }

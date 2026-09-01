@@ -1,29 +1,3 @@
-resource "aws_security_group" "alb" {
-  name        = "8byte-alb-sg"
-  description = "Security group for Application Load Balancer"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "8byte-alb-sg"
-  }
-}
-
-
 resource "aws_lb" "app" {
   name               = "8byte-devops-alb"
   internal           = false
@@ -88,16 +62,4 @@ resource "aws_lb_listener" "http" {
       }
     }
   }
-}
-
-
-output "alb_dns_name" {
-  description = "Application Load Balancer DNS name"
-  value       = aws_lb.app.dns_name
-}
-
-
-output "alb_url" {
-  description = "Application URL through the Application Load Balancer"
-  value       = "http://${aws_lb.app.dns_name}"
 }

@@ -93,3 +93,9 @@ variable "rds_port" {
   type        = number
   default     = 5432
 }
+
+variable "rds_password" {
+  description = "PostgreSQL master password"
+  type        = string
+  sensitive   = true
+}
