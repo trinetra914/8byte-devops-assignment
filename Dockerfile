@@ -7,8 +7,9 @@ WORKDIR /build
 
 COPY app/requirements.txt .
 
-# Install dependencies into an isolated destination directory (/install)
-RUN python -m pip install --no-cache-dir --upgrade pip \
+# Install dependencies into an isolated directory.
+# pip and setuptools are only needed during the build stage.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools \
     && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ------------------------------------------------------------------------------
@@ -18,23 +19,28 @@ FROM python:3.13-slim AS runner
 
 WORKDIR /app
 
-# 1. Patch OS security packages
-# 2. Remove leftover system Python dist-packages to prevent Trivy false-positives
-RUN apt-get update && apt-get upgrade -y \
+# Patch OS security packages and remove unnecessary system Python packages.
+RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /usr/lib/python3/dist-packages/*
+    && rm -rf /var/lib/apt/lists/* \
+              /usr/lib/python3/dist-packages/* \
+              /usr/local/lib/python3.13/site-packages/pip \
+              /usr/local/lib/python3.13/site-packages/pip-*.dist-info
 
-# Copy only clean, upgraded dependencies from builder stage
+# Copy only application dependencies from the builder.
 COPY --from=builder /install /usr/local
 
-# Copy application package
+# Copy application package.
 COPY app/ /app/app/
 
-# Copy tests for CI/integration testing
+# Copy tests for CI/integration testing.
 COPY tests/ /app/tests/
 
-# Non-root user for security best practices
-RUN useradd -m appuser && chown -R appuser:appuser /app
+# Run as non-root user.
+RUN useradd -m appuser \
+    && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 5000
