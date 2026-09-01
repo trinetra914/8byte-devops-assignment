@@ -141,9 +141,6 @@ jobs:
     needs: deploy-staging
     runs-on: ubuntu-latest
 
-    # IMPORTANT:
-    # Configure required reviewers for this environment
-    # in GitHub repository settings.
     environment:
       name: production
 
@@ -207,7 +204,9 @@ jobs:
       - build-and-scan
       - deploy-staging
       - deploy-production
+
     if: ${{ always() && contains(needs.*.result, 'failure') }}
+
     runs-on: ubuntu-latest
 
     steps:
@@ -221,7 +220,7 @@ jobs:
           echo "Run: ${{ github.run_number }}"
           echo "Please check the GitHub Actions logs."
 
-            - name: Send Slack notification
+      - name: Send Slack notification
         if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
         uses: slackapi/slack-github-action@v2.1.1
         with:
@@ -231,5 +230,5 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         payload: |
           {
-            "text": " Deployment pipeline failed!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.run_number }}\nPlease check GitHub Actions logs."
+            "text": "Deployment pipeline failed!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.run_number }}\nPlease check GitHub Actions logs."
           }
