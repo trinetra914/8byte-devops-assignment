@@ -9,8 +9,14 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:trinetra914/8byte-devops-assignment:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": [
+            "repo:trinetra914/8byte-devops-assignment:ref:refs/heads/main",
+            "repo:trinetra914/8byte-devops-assignment:environment:staging",
+            "repo:trinetra914/8byte-devops-assignment:environment:production"
+          ]
         }
       }
     }
