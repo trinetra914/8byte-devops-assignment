@@ -196,7 +196,7 @@ jobs:
           echo "Production deployment successful."
 
 
-  # 4. Failure notification
+    # 4. Failure notification
 
   notify-failure:
     name: Notify on Failure
@@ -204,9 +204,7 @@ jobs:
       - build-and-scan
       - deploy-staging
       - deploy-production
-
     if: ${{ always() && contains(needs.*.result, 'failure') }}
-
     runs-on: ubuntu-latest
 
     steps:
@@ -221,14 +219,14 @@ jobs:
           echo "Please check the GitHub Actions logs."
 
       - name: Send Slack notification
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
-        uses: slackapi/slack-github-action@v2.1.1
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        payload: |
-          {
-            "text": "Deployment pipeline failed!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.run_number }}\nPlease check GitHub Actions logs."
-          }
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "Deployment pipeline failed!\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.run_number }}\nPlease check GitHub Actions logs."
+            }
