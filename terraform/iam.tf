@@ -78,9 +78,9 @@ resource "aws_iam_role" "github_actions" {
 
           StringLike = {
             "token.actions.githubusercontent.com:sub" = [
-              "repo:trinetra914/8byte-devops-assignment:ref:refs/heads/main",
-              "repo:trinetra914/8byte-devops-assignment:environment:staging",
-              "repo:trinetra914/8byte-devops-assignment:environment:production"
+              "repo:trinetra914@125327243/8byte-devops-assignment@1349637084:ref:refs/heads/main",
+              "repo:trinetra914@125327243/8byte-devops-assignment@1349637084:environment:staging",
+              "repo:trinetra914@125327243/8byte-devops-assignment@1349637084:environment:production"
             ]
           }
         }
