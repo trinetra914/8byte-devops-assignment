@@ -34,18 +34,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug OIDC claims
+      - name: Debug GitHub OIDC context
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_ID: ${{ github.repository_owner_id }}
+          REF: ${{ github.ref }}
+          BRANCH: ${{ github.ref_name }}
+          ENVIRONMENT: ${{ github.environment }}
+          WORKFLOW: ${{ github.workflow }}
+          EVENT: ${{ github.event_name }}
+          JOB: ${{ github.job }}
         run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Repository ID: ${{ github.repository_id }}"
-          echo "Repository owner: ${{ github.repository_owner }}"
-          echo "Repository owner ID: ${{ github.repository_owner_id }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Environment: ${{ github.environment }}"
-          echo "Workflow: ${{ github.workflow }}"
-          echo "Event: ${{ github.event_name }}"
-          echo "Job: ${{ github.job }}"
+          echo "Repository = $REPOSITORY"
+          echo "Repository ID = $REPOSITORY_ID"
+          echo "Owner = $OWNER"
+          echo "Owner ID = $OWNER_ID"
+          echo "Ref = $REF"
+          echo "Branch = $BRANCH"
+          echo "Environment = $ENVIRONMENT"
+          echo "Workflow = $WORKFLOW"
+          echo "Event = $EVENT"
+          echo "Job = $JOB"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
