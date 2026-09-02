@@ -18,7 +18,9 @@ env:
 
 jobs:
 
+  # ============================================================
   # 1. Build and scan Docker image
+  # ============================================================
 
   build-and-scan:
     name: Build and Scan Docker Image
@@ -28,32 +30,22 @@ jobs:
       image: ${{ steps.image.outputs.image }}
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-                  - name: Debug OIDC claims
-        env:
-          REPOSITORY: ${{ github.repository }}
-          REPOSITORY_ID: ${{ github.repository_id }}
-          OWNER: ${{ github.repository_owner }}
-          OWNER_ID: ${{ github.repository_owner_id }}
-          REF: ${{ github.ref }}
-          BRANCH: ${{ github.ref_name }}
-          ENVIRONMENT: ${{ github.environment }}
-          WORKFLOW: ${{ github.workflow }}
-          EVENT: ${{ github.event_name }}
-          JOB: ${{ github.job }}
+      - name: Debug OIDC claims
         run: |
-          echo "Repository = $REPOSITORY"
-          echo "Repository ID = $REPOSITORY_ID"
-          echo "Owner = $OWNER"
-          echo "Owner ID = $OWNER_ID"
-          echo "Ref = $REF"
-          echo "Branch = $BRANCH"
-          echo "Environment = $ENVIRONMENT"
-          echo "Workflow = $WORKFLOW"
-          echo "Event = $EVENT"
-          echo "Job = $JOB"
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository ID: ${{ github.repository_id }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
+          echo "Repository owner ID: ${{ github.repository_owner_id }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Environment: ${{ github.environment }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Job: ${{ github.job }}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -96,7 +88,9 @@ jobs:
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
 
+  # ============================================================
   # 2. Deploy to staging
+  # ============================================================
 
   deploy-staging:
     name: Deploy to Staging
@@ -107,6 +101,7 @@ jobs:
       name: staging
 
     steps:
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -158,7 +153,9 @@ jobs:
           echo "Staging deployment successful."
 
 
+  # ============================================================
   # 3. Production deployment
+  # ============================================================
 
   deploy-production:
     name: Deploy to Production
@@ -169,6 +166,7 @@ jobs:
       name: production
 
     steps:
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -220,7 +218,9 @@ jobs:
           echo "Production deployment successful."
 
 
-    # 4. Failure notification
+  # ============================================================
+  # 4. Failure notification
+  # ============================================================
 
   notify-failure:
     name: Notify on Failure
@@ -228,10 +228,13 @@ jobs:
       - build-and-scan
       - deploy-staging
       - deploy-production
+
     if: ${{ always() && contains(needs.*.result, 'failure') }}
+
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Notify deployment failure
         run: |
           echo "Deployment pipeline failed."
@@ -245,8 +248,11 @@ jobs:
       - name: Send Slack notification
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+
         uses: slackapi/slack-github-action@v2.1.1
+
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
