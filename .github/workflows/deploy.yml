@@ -61,12 +61,6 @@ jobs:
           role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -122,6 +116,18 @@ jobs:
           role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Show image to deploy
+        env:
+          IMAGE: ${{ needs.build-and-scan.outputs.image }}
+        run: |
+          echo "Image received from build job:"
+          echo "$IMAGE"
+
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: IMAGE is empty."
+            exit 1
+          fi
+
       - name: Deploy application to staging EC2
         env:
           IMAGE: ${{ needs.build-and-scan.outputs.image }}
@@ -168,84 +174,84 @@ jobs:
 
 
   # ============================================================
-# 3. Production deployment
-# ============================================================
+  # 3. Production deployment
+  # ============================================================
 
-deploy-production:
-  name: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
 
-  needs:
-    - build-and-scan
-    - deploy-staging
+    needs:
+      - build-and-scan
+      - deploy-staging
 
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  environment:
-    name: production
+    environment:
+      name: production
 
-  steps:
+    steps:
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Show image to deploy
-      env:
-        IMAGE: ${{ needs.build-and-scan.outputs.image }}
-      run: |
-        echo "Image received from build job:"
-        echo "$IMAGE"
+      - name: Show image to deploy
+        env:
+          IMAGE: ${{ needs.build-and-scan.outputs.image }}
+        run: |
+          echo "Image received from build job:"
+          echo "$IMAGE"
 
-        if [ -z "$IMAGE" ]; then
-          echo "ERROR: IMAGE is empty."
-          exit 1
-        fi
+          if [ -z "$IMAGE" ]; then
+            echo "ERROR: IMAGE is empty."
+            exit 1
+          fi
 
-    - name: Deploy approved image to production
-      env:
-        IMAGE: ${{ needs.build-and-scan.outputs.image }}
-      run: |
-        COMMAND_ID=$(aws ssm send-command \
-          --instance-ids "$EC2_INSTANCE_ID" \
-          --document-name "AWS-RunShellScript" \
-          --parameters "commands=[
-            \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY\",
-            \"docker pull $IMAGE\",
-            \"docker stop $CONTAINER_NAME || true\",
-            \"docker rm $CONTAINER_NAME || true\",
-            \"docker run -d --restart unless-stopped --name $CONTAINER_NAME -p 5000:5000 $IMAGE\"
-          ]" \
-          --query "Command.CommandId" \
-          --output text)
+      - name: Deploy approved image to production
+        env:
+          IMAGE: ${{ needs.build-and-scan.outputs.image }}
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY\",
+              \"docker pull $IMAGE\",
+              \"docker stop $CONTAINER_NAME || true\",
+              \"docker rm $CONTAINER_NAME || true\",
+              \"docker run -d --restart unless-stopped --name $CONTAINER_NAME -p 5000:5000 $IMAGE\"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
 
-        echo "Production SSM Command ID: $COMMAND_ID"
+          echo "Production SSM Command ID: $COMMAND_ID"
 
-        aws ssm wait command-executed \
-          --command-id "$COMMAND_ID" \
-          --instance-id "$EC2_INSTANCE_ID"
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
 
-        aws ssm get-command-invocation \
-          --command-id "$COMMAND_ID" \
-          --instance-id "$EC2_INSTANCE_ID"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
 
-    - name: Production health check
-      run: |
-        echo "Waiting for production application..."
-        sleep 15
+      - name: Production health check
+        run: |
+          echo "Waiting for production application..."
+          sleep 15
 
-        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-          "http://13.207.41.61:5000/health")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://13.207.41.61:5000/health")
 
-        echo "Production health endpoint returned: $STATUS"
+          echo "Production health endpoint returned: $STATUS"
 
-        if [ "$STATUS" != "200" ]; then
-          echo "Production health check failed."
-          exit 1
-        fi
+          if [ "$STATUS" != "200" ]; then
+            echo "Production health check failed."
+            exit 1
+          fi
 
-        echo "Production deployment successful."
+          echo "Production deployment successful."
 
 
   # ============================================================
@@ -254,6 +260,7 @@ deploy-production:
 
   notify-failure:
     name: Notify on Failure
+
     needs:
       - build-and-scan
       - deploy-staging
@@ -278,11 +285,8 @@ deploy-production:
       - name: Send Slack notification
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
-
         uses: slackapi/slack-github-action@v2.1.1
-
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
