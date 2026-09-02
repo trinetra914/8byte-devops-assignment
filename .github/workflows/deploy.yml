@@ -34,20 +34,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug GitHub OIDC context
-        run: |
-          echo "===== GITHUB OIDC DEBUG ====="
-          echo "Repository: ${{ github.repository }}"
-          echo "Repository ID: ${{ github.repository_id }}"
-          echo "Owner: ${{ github.repository_owner }}"
-          echo "Owner ID: ${{ github.repository_owner_id }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Environment: ${{ github.environment }}"
-          echo "Workflow: ${{ github.workflow }}"
-          echo "Event: ${{ github.event_name }}"
-          echo "Job: ${{ github.job }}"
-          echo "============================="
+      - name: Debug GitHub OIDC token
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+            const parts = token.split('.');
+            const payload = JSON.parse(
+              Buffer.from(parts[1], 'base64url').toString()
+            );
+
+            console.log("===== OIDC TOKEN CLAIMS =====");
+            console.log("iss:", payload.iss);
+            console.log("aud:", payload.aud);
+            console.log("sub:", payload.sub);
+            console.log("repository:", payload.repository);
+            console.log("repository_owner:", payload.repository_owner);
+            console.log("ref:", payload.ref);
+            console.log("ref_type:", payload.ref_type);
+            console.log("event_name:", payload.event_name);
+            console.log("=============================");
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::777040315554:role/8byte-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
